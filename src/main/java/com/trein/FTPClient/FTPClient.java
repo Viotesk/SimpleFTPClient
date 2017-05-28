@@ -2,7 +2,12 @@ package com.trein.FTPClient;
 
 import com.trein.FTPClient.controllers.ControlConnection;
 import com.trein.FTPClient.controllers.DataConnection;
+import com.trein.FTPClient.controllers.FTPProtocolConstants;
+import com.trein.FTPClient.util.ConnectionData;
+import com.trein.FTPClient.util.MessageResponseParser;
 import org.apache.log4j.Logger;
+
+import java.io.*;
 
 
 public class FTPClient {
@@ -13,6 +18,9 @@ public class FTPClient {
 
     private ControlConnection controlConnection;
     private DataConnection dataConnection;
+
+    private String login;
+    private boolean logged;
 
 
     public FTPClient() {
@@ -28,6 +36,81 @@ public class FTPClient {
         return controlConnection.getLastResponse();
     }
 
+    public void download(String fileName, String pathDesc) {
+        if(!openPassiveDataConnection())
+            return;
+
+        controlConnection.sendToServer(FTPProtocolConstants.DOWNLOAD_FILE + fileName);
+        dataConnection.read();
+
+        try(FileWriter writer = new FileWriter(pathDesc + fileName, false)) {
+            writer.write(dataConnection.getResponse());
+        } catch (IOException e) {
+            log.warn("Exception " + e);
+        }
+
+//        try(Writer fileWriter = new OutputStreamWriter(new FileOutputStream(pathDesc + fileName), StandardCharsets.UTF_8)) {
+//            fileWriter.write(dataConnection.getResponse());
+//        } catch (IOException e) {
+//            log.warn("Exception " + e);
+//        }
+    }
+
+    public void upload(String fileName, String pathSrc) {
+        StringBuilder sb = new StringBuilder();
+        String dataToSend;
+
+        try(BufferedReader reader = new BufferedReader(new FileReader(pathSrc + fileName))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n\n");
+            }
+            dataToSend = sb.toString();
+            sb.setLength(0);
+        } catch (IOException e) {
+            dataToSend = null;
+            log.warn("Exception " + e);
+        }
+
+        if(!openPassiveDataConnection())
+            return;
+        controlConnection.sendToServer(FTPProtocolConstants.UPLOAD_FILE + fileName);
+
+        dataConnection.write(dataToSend);
+    }
+
+
+    //TODO throw exception without return null.
+    public String printList() {
+        if (!openPassiveDataConnection())
+            return null;
+
+        controlConnection.sendToServer(FTPProtocolConstants.LIST);
+        dataConnection.read();
+
+
+        return dataConnection.getResponse();
+    }
+
+    public boolean openPassiveDataConnection() {
+        controlConnection.sendToServer(FTPProtocolConstants.PASSIVE_MOD);
+        if(controlConnection.getLastReplyCode() != FTPProtocolConstants.ENTERING_PASSIVE_MOD)
+            return false;
+
+        ConnectionData connectionData = MessageResponseParser.parsePasv(controlConnection.getLastMessage());
+        dataConnection.connect(connectionData.serverAddr, connectionData.port);
+
+        return dataConnection.isConnected();
+    }
+
+    public String getLogin() {
+        return login;
+    }
+
+    public boolean isLogged() {
+        return logged;
+    }
+
     public void connect(String serverAddr) {
         this.connect(serverAddr, DEFAULT_PORT);
     }
@@ -36,8 +119,21 @@ public class FTPClient {
         controlConnection.tryToConnect(serverAddr, port);
     }
 
+    //TODO throw exception if current state not CONNECTED_IDLE
     public void login(String login, String password) {
-        controlConnection.tryToLogin(login, password);
+        this.login = login;
+
+        controlConnection.sendToServer(FTPProtocolConstants.LOGIN + login);
+        if (controlConnection.getLastReplyCode() == FTPProtocolConstants.NEED_PASSWORD)
+            controlConnection.sendToServer(FTPProtocolConstants.PASSWORD + password);
+
+        logged = controlConnection.getLastReplyCode() == FTPProtocolConstants.LOGGING_SUCCESSFULL;
+
+        //TODO throw exception if not logged
+    }
+
+    public void sendCommand(String command) {
+        controlConnection.sendToServer(command);
     }
 
     public void disconnect(){

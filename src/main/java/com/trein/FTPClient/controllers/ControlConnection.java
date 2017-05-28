@@ -1,5 +1,7 @@
 package com.trein.FTPClient.controllers;
 
+import com.trein.FTPClient.util.Message;
+import com.trein.FTPClient.util.MessageResponseParser;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -18,15 +20,22 @@ public class ControlConnection {
 
     private int port;
     private String serverAddr;
-    private String login;
 
     private static final char EOL = 10;
-    private String lastResponse;
+    private static final String EOL_SEND = "\r\n";
+    private Message lastMessage;
     private String currentCmd;
-    private boolean isLogged;
+
+    public int getLastReplyCode() {
+        return lastMessage.getCode();
+    }
+
+    public String getLastMessage() {
+        return lastMessage.getMessage();
+    }
 
     public String getLastResponse() {
-        return lastResponse;
+        return lastMessage.toString();
     }
 
     public State getCurrentState() {
@@ -34,7 +43,7 @@ public class ControlConnection {
     }
 
     public void tryToConnect(String serverAddr, int port) {
-        if(currentState != State.DISCONNECTED)
+        if (currentState != State.DISCONNECTED)
             tryToDisconnect();
 
         this.serverAddr = serverAddr;
@@ -45,26 +54,16 @@ public class ControlConnection {
 
     //TODO Send information to user we are already disconnected
     public void tryToDisconnect() {
-        if(currentState == State.DISCONNECTED)
+        if (currentState == State.DISCONNECTED)
             return;
 
         disconnectingState();
     }
 
-    //TODO throw exception if current state not CONNECTED_IDLE
-    public void tryToLogin(String login, String password) {
-        if(currentState != State.CONNECTED_IDLE)
-            return;
-
-        this.login = login;
-
-        sendToServer(FTPCommands.LOGIN + login);
-        sendToServer(FTPCommands.PASSWORD + password);
-    }
 
     //TODO Send information to user we cant send to server if we not connected
     public void sendToServer(String command) {
-        if(currentState != State.CONNECTED_IDLE)
+        if (currentState != State.CONNECTED_IDLE)
             return;
 
         currentCmd = command;
@@ -83,7 +82,7 @@ public class ControlConnection {
 
     //TODO throw Exception instead "return"
     private void disconnectingState() {
-        if(currentState != State.CONNECTED_IDLE)
+        if (currentState != State.CONNECTED_IDLE)
             return;
 
         setState(State.DISCONNECTING);
@@ -108,7 +107,7 @@ public class ControlConnection {
     }
 
     private void connectedIdleState() {
-        if(currentState == State.DISCONNECTED || currentState == State.DISCONNECTING)
+        if (currentState == State.DISCONNECTED || currentState == State.DISCONNECTING)
             return;
 
         setState(State.CONNECTED_IDLE);
@@ -119,7 +118,7 @@ public class ControlConnection {
     }
 
     private void writingState() {
-        if(currentState != State.CONNECTED_IDLE)
+        if (currentState != State.CONNECTED_IDLE)
             return;
 
         setState(State.WRITING);
@@ -128,10 +127,10 @@ public class ControlConnection {
 
     private void setState(State newState) {
 
-        this.currentState = newState;
+        currentState = newState;
 
         try {
-            switch (this.currentState) {
+            switch (currentState) {
                 case DISCONNECTING:
                     disconnectPrivate();
                     break;
@@ -163,7 +162,7 @@ public class ControlConnection {
         server.connect(new InetSocketAddress(serverAddr, port));
         if (isConnected()) {
             in = server.getInputStream();
-            out = new PrintStream(server.getOutputStream(), true);
+            out = new PrintStream(server.getOutputStream());
             connectedState();
         } else {
             disconnectedState();
@@ -171,7 +170,7 @@ public class ControlConnection {
     }
 
     private void disconnectPrivate() throws IOException {
-        if(!isConnected())
+        if (!isConnected())
             return;
 
         server.close();
@@ -192,19 +191,17 @@ public class ControlConnection {
             if (read == EOL)
                 break;
         }
-        lastResponse = sb.toString();
-        log.info("Server >> " + lastResponse);
+        lastMessage = MessageResponseParser.parseResponse(sb.toString());
+        log.info("Server >> " + lastMessage.toString());
 
         connectedIdleState();
     }
 
     private void writingPrivate() {
-        out.print(currentCmd);
+        out.print(currentCmd + EOL_SEND);
         log.info("Client << " + currentCmd);
         readingState();
     }
-
-
 
 
     public boolean isConnected() {
