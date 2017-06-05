@@ -42,7 +42,7 @@ public class ControlConnection {
         return currentState;
     }
 
-    public void tryToConnect(String serverAddr, int port) {
+    public void tryToConnect(String serverAddr, int port) throws IOException {
         if (currentState != State.DISCONNECTED)
             tryToDisconnect();
 
@@ -53,7 +53,7 @@ public class ControlConnection {
     }
 
     //TODO Send information to user we are already disconnected
-    public void tryToDisconnect() {
+    public void tryToDisconnect() throws IOException {
         if (currentState == State.DISCONNECTED)
             return;
 
@@ -62,7 +62,7 @@ public class ControlConnection {
 
 
     //TODO Send information to user we cant send to server if we not connected
-    public void sendToServer(String command) {
+    public void sendToServer(String command) throws IOException {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
@@ -81,43 +81,43 @@ public class ControlConnection {
     }
 
     //TODO throw Exception instead "return"
-    private void disconnectingState() {
+    private void disconnectingState() throws IOException {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
         setState(State.DISCONNECTING);
     }
 
-    private void disconnectedState() {
+    private void disconnectedState() throws IOException {
         setState(State.DISCONNECTED);
     }
 
-    private void connectingState() {
+    private void connectingState() throws IOException {
         if (currentState != State.DISCONNECTED)
             return;
 
         setState(State.CONNECTING);
     }
 
-    private void connectedState() {
+    private void connectedState() throws IOException {
         if (currentState == State.DISCONNECTED)
             return;
 
         setState(State.CONNECTED);
     }
 
-    private void connectedIdleState() {
+    private void connectedIdleState() throws IOException {
         if (currentState == State.DISCONNECTED || currentState == State.DISCONNECTING)
             return;
 
         setState(State.CONNECTED_IDLE);
     }
 
-    private void readingState() {
+    private void readingState() throws IOException {
         setState(State.READING);
     }
 
-    private void writingState() {
+    private void writingState() throws IOException {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
@@ -125,11 +125,10 @@ public class ControlConnection {
     }
 
 
-    private void setState(State newState) {
+    private void setState(State newState) throws IOException {
 
         currentState = newState;
 
-        try {
             switch (currentState) {
                 case DISCONNECTING:
                     disconnectPrivate();
@@ -151,10 +150,6 @@ public class ControlConnection {
                     writingPrivate();
                     break;
             }
-        } catch (Exception e) {
-            log.warn("Exception: " + e);
-            disconnectedState();
-        }
     }
 
     private void connectPrivate() throws IOException {
@@ -197,7 +192,7 @@ public class ControlConnection {
         connectedIdleState();
     }
 
-    private void writingPrivate() {
+    private void writingPrivate() throws IOException {
         out.print(currentCmd + EOL_SEND);
         log.info("Client << " + currentCmd);
         readingState();

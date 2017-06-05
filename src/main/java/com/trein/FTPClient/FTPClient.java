@@ -36,7 +36,7 @@ public class FTPClient {
         return controlConnection.getLastResponse();
     }
 
-    public void download(String fileName, String pathDesc) {
+    public void download(String fileName, String pathDesc) throws IOException {
         if(!openPassiveDataConnection())
             return;
 
@@ -56,7 +56,7 @@ public class FTPClient {
 //        }
     }
 
-    public void upload(String fileName, String pathSrc) {
+    public void upload(String fileName, String pathSrc) throws IOException {
         StringBuilder sb = new StringBuilder();
         String dataToSend;
 
@@ -81,7 +81,7 @@ public class FTPClient {
 
 
     //TODO throw exception without return null.
-    public String printList() {
+    public String printList() throws IOException {
         if (!openPassiveDataConnection())
             return null;
 
@@ -92,7 +92,7 @@ public class FTPClient {
         return dataConnection.getResponse();
     }
 
-    public boolean openPassiveDataConnection() {
+    public boolean openPassiveDataConnection() throws IOException {
         controlConnection.sendToServer(FTPProtocolConstants.PASSIVE_MOD);
         if(controlConnection.getLastReplyCode() != FTPProtocolConstants.ENTERING_PASSIVE_MOD)
             return false;
@@ -111,32 +111,33 @@ public class FTPClient {
         return logged;
     }
 
-    public void connect(String serverAddr) {
-        this.connect(serverAddr, DEFAULT_PORT);
+    public boolean connect(String serverAddr) throws IOException {
+        return this.connect(serverAddr, DEFAULT_PORT);
     }
 
-    public void connect(String serverAddr, int port) {
+    public boolean connect(String serverAddr, int port) throws IOException {
         controlConnection.tryToConnect(serverAddr, port);
+        return controlConnection.isConnected();
     }
 
     //TODO throw exception if current state not CONNECTED_IDLE
-    public void login(String login, String password) {
+    public void login(String login, char[] password) throws IOException {
         this.login = login;
 
         controlConnection.sendToServer(FTPProtocolConstants.LOGIN + login);
         if (controlConnection.getLastReplyCode() == FTPProtocolConstants.NEED_PASSWORD)
             controlConnection.sendToServer(FTPProtocolConstants.PASSWORD + password);
 
-        logged = controlConnection.getLastReplyCode() == FTPProtocolConstants.LOGGING_SUCCESSFULL;
+        logged = controlConnection.getLastReplyCode() == FTPProtocolConstants.LOGGING_SUCCESSFUL;
 
         //TODO throw exception if not logged
     }
 
-    public void sendCommand(String command) {
+    public void sendCommand(String command) throws IOException {
         controlConnection.sendToServer(command);
     }
 
-    public void disconnect(){
+    public void disconnect() throws IOException {
         controlConnection.tryToDisconnect();
     }
 

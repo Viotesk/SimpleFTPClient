@@ -20,6 +20,6 @@ public class FTPProtocolConstants {
      * Codes
      */
     public static final int NEED_PASSWORD = 331;
-    public static final int LOGGING_SUCCESSFULL = 230;
+    public static final int LOGGING_SUCCESSFUL = 230;
     public static final int ENTERING_PASSIVE_MOD = 227;
 }
