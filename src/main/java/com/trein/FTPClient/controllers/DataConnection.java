@@ -8,16 +8,20 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 
 public class DataConnection {
     private Logger log = Logger.getLogger(DataConnection.class);
+
     private State currentState = State.DISCONNECTED;
     private static final char EOL = 10;
+    private static final int BUFFER_SIZE = 1024;
 
-    private Socket server;
+    private Socket socket;
     private InputStream in;
     private OutputStream out;
+
+    private InputStream clientIn;
+    private OutputStream clientOut;
 
     private String serverAddr;
     private int port;
@@ -34,6 +38,14 @@ public class DataConnection {
         return response;
     }
 
+    public void setClientIn(InputStream clientIn) {
+        this.clientIn = clientIn;
+    }
+
+    public void setClientOut(OutputStream clientOut) {
+        this.clientOut = clientOut;
+    }
+
     public void connect(String serverAddr, int port) {
         this.serverAddr = serverAddr;
         this.port = port;
@@ -46,7 +58,6 @@ public class DataConnection {
     }
 
     public void write(String text) {
-        dataToSend = text.getBytes(StandardCharsets.UTF_8);
         writingState();
     }
 
@@ -82,7 +93,7 @@ public class DataConnection {
     }
 
     private void writingState() {
-        if(currentState != State.CONNECTED)
+        if (currentState != State.CONNECTED)
             return;
 
         setState(State.WRITING);
@@ -124,54 +135,80 @@ public class DataConnection {
                     break;
             }
         } catch (Exception e) {
-            log.warn("Exception: " + e);
             disconnectedState();
         }
     }
 
     private void connectPrivate() throws IOException {
-        server = new Socket();
-        server.connect(new InetSocketAddress(serverAddr, port));
-        if (isConnected()) {
-            in = server.getInputStream();
-            out = new PrintStream(server.getOutputStream(), true);
-            connectedState();
-        } else {
-            disconnectedState();
+        socket = new Socket();
+        try {
+            socket.connect(new InetSocketAddress(serverAddr, port));
+        } catch (IOException e) {
+            log.error("Connection exception: ", e);
+            throw e;
         }
+
+        if (!isConnected()) {
+            disconnectedState();
+            return;
+        }
+
+        try {
+            in = socket.getInputStream();
+            out = new PrintStream(socket.getOutputStream(), true);
+        } catch (IOException e) {
+            log.error("Exception while opening streams: ", e);
+            throw e;
+        }
+        connectedState();
     }
 
     private void readPrivate() throws IOException {
-        StringBuilder sb = new StringBuilder();
-        int read;
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int length;
 
-        while ((read = in.read()) != -1) {
-            sb.append((char) read);
+        try {
+            while ((length = in.read(buffer)) != -1) {
+                clientOut.write(buffer, 0, length);
+            }
+        } catch (IOException e) {
+            log.warn("Exception while reading data: ", e);
+            throw e;
         }
-        response = sb.toString();
-        sb.setLength(0);
+
         disconnectingState();
     }
 
-    private void writePrivate() throws IOException {
-        out.write(dataToSend);
-        out.flush();
+    private void writePrivate()  {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int length;
+
+        try {
+            while ((length = clientIn.read(buffer)) != -1) {
+                out.write(buffer, 0, length);
+            }
+        } catch (IOException e) {
+            log.warn("Exception while writing date: ", e);
+        }
+
         disconnectingState();
     }
 
     private void disconnectPrivate() throws IOException {
         if (isConnected())
-            server.close();
+            socket.close();
 
-        server = null;
+        socket = null;
         in.close();
         in = null;
         out.close();
         out = null;
 
+        clientIn = null;
+        clientOut = null;
     }
 
     public boolean isConnected() {
-        return server != null;
+        return ((socket != null) && (socket.isConnected()));
     }
 }

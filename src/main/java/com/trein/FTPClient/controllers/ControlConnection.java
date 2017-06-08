@@ -11,48 +11,71 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 
 public class ControlConnection {
-    private State currentState = State.DISCONNECTED;
     private Logger log = Logger.getLogger(ControlConnection.class);
+    private Socket socket;
 
-    private Socket server;
     private InputStream in;
     private PrintStream out;
 
     private int port;
-    private String serverAddr;
+    private String hostname;
+    private int timeout = 0;
+
+    private State currentState = State.DISCONNECTED;
 
     private static final char EOL = 10;
     private static final String EOL_SEND = "\r\n";
     private Message lastMessage;
     private String currentCmd;
 
+    /**
+     * @return the last code from the server response
+     */
     public int getLastReplyCode() {
+        if (lastMessage == null)
+            return 0;
+
         return lastMessage.getCode();
     }
 
+    /**
+     * @return the last message from the server response
+     */
     public String getLastMessage() {
+        if (lastMessage == null)
+            return "null";
+
         return lastMessage.getMessage();
     }
 
+    /**
+     * @return the server response containing the code and the message
+     */
     public String getLastResponse() {
+        if (lastMessage == null)
+            return "null";
+
         return lastMessage.toString();
     }
 
+    /**
+     * @return current state
+     */
     public State getCurrentState() {
         return currentState;
     }
 
-    public void tryToConnect(String serverAddr, int port) throws IOException {
+    public void tryToConnect(String serverAddr, int port, int timeout) throws IOException {
         if (currentState != State.DISCONNECTED)
             tryToDisconnect();
 
-        this.serverAddr = serverAddr;
+        this.hostname = serverAddr;
         this.port = port;
+        this.timeout = timeout;
 
         connectingState();
     }
 
-    //TODO Send information to user we are already disconnected
     public void tryToDisconnect() throws IOException {
         if (currentState == State.DISCONNECTED)
             return;
@@ -61,13 +84,16 @@ public class ControlConnection {
     }
 
 
-    //TODO Send information to user we cant send to server if we not connected
     public void sendToServer(String command) throws IOException {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
         currentCmd = command;
         writingState();
+    }
+
+    public void read() throws IOException {
+        readingState();
     }
 
     public enum State {
@@ -129,35 +155,35 @@ public class ControlConnection {
 
         currentState = newState;
 
-            switch (currentState) {
-                case DISCONNECTING:
-                    disconnectPrivate();
-                    break;
-                case DISCONNECTED:
-                    break;
-                case CONNECTING:
-                    connectPrivate();
-                    break;
-                case CONNECTED:
-                    readingState();
-                    break;
-                case CONNECTED_IDLE:
-                    break;
-                case READING:
-                    readServerResponse();
-                    break;
-                case WRITING:
-                    writingPrivate();
-                    break;
-            }
+        switch (currentState) {
+            case DISCONNECTING:
+                disconnectPrivate();
+                break;
+            case DISCONNECTED:
+                break;
+            case CONNECTING:
+                connectPrivate();
+                break;
+            case CONNECTED:
+                readingState();
+                break;
+            case CONNECTED_IDLE:
+                break;
+            case READING:
+                readServerResponse();
+                break;
+            case WRITING:
+                writingPrivate();
+                break;
+        }
     }
 
     private void connectPrivate() throws IOException {
-        server = new Socket();
-        server.connect(new InetSocketAddress(serverAddr, port));
+        socket = new Socket();
+        socket.connect(new InetSocketAddress(hostname, port));
         if (isConnected()) {
-            in = server.getInputStream();
-            out = new PrintStream(server.getOutputStream());
+            in = socket.getInputStream();
+            out = new PrintStream(socket.getOutputStream());
             connectedState();
         } else {
             disconnectedState();
@@ -168,8 +194,8 @@ public class ControlConnection {
         if (!isConnected())
             return;
 
-        server.close();
-        server = null;
+        socket.close();
+        socket = null;
         in.close();
         in = null;
         out.close();
@@ -179,6 +205,15 @@ public class ControlConnection {
     }
 
     private void readServerResponse() throws IOException {
+        do {
+            readInput();
+
+        } while (lastMessage.isMultiline());
+
+        connectedIdleState();
+    }
+
+    private String readInput() throws IOException {
         StringBuilder sb = new StringBuilder();
         int read;
         while ((read = in.read()) != -1) {
@@ -186,10 +221,11 @@ public class ControlConnection {
             if (read == EOL)
                 break;
         }
+
         lastMessage = MessageResponseParser.parseResponse(sb.toString());
         log.info("Server >> " + lastMessage.toString());
 
-        connectedIdleState();
+        return sb.toString();
     }
 
     private void writingPrivate() throws IOException {
@@ -200,6 +236,6 @@ public class ControlConnection {
 
 
     public boolean isConnected() {
-        return server != null;
+        return ((socket != null) && (socket.isConnected()));
     }
 }

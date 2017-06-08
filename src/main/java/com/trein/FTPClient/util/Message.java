@@ -6,10 +6,12 @@ package com.trein.FTPClient.util;
 public class Message {
     private int code;
     private String message;
+    private boolean multiline;
 
-    public Message(int code, String message) {
+    public Message(int code, String message, boolean multiline) {
         this.code = code;
         this.message = message;
+        this.multiline = multiline;
     }
 
     public int getCode() {
@@ -18,6 +20,10 @@ public class Message {
 
     public String getMessage() {
         return message;
+    }
+
+    public boolean isMultiline(){
+        return multiline;
     }
 
     @Override

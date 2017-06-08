@@ -12,9 +12,9 @@ public final class MessageResponseParser {
         Message msg;
 
         try {
-            msg = new Message(Integer.parseInt(response.substring(0, 3)), response.substring(4).trim());
+            msg = new Message(Integer.parseInt(response.substring(0, 3)), response.substring(4).trim(), response.charAt(3) == '-');
         } catch (NumberFormatException e) {
-            msg = new Message(0, response.trim());
+            msg = new Message(0, response.trim(),true);
         }
 
         return msg;
@@ -35,7 +35,7 @@ public final class MessageResponseParser {
                 sb.append('.');
             }
         }
-        result.serverAddr = sb.toString();
+        result.hostname = sb.toString();
         result.port = (Integer.parseInt(strings[4]) << 8) + Integer.parseInt(strings[5]);
         sb.setLength(0);
 
