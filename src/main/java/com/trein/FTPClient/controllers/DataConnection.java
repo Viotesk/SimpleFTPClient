@@ -38,13 +38,6 @@ public class DataConnection {
         return response;
     }
 
-    public void setClientIn(InputStream clientIn) {
-        this.clientIn = clientIn;
-    }
-
-    public void setClientOut(OutputStream clientOut) {
-        this.clientOut = clientOut;
-    }
 
     public void connect(String serverAddr, int port) {
         this.serverAddr = serverAddr;
@@ -53,11 +46,13 @@ public class DataConnection {
         connectingState();
     }
 
-    public void read() {
+    public void read(OutputStream out) {
+        this.clientOut = out;
         readingState();
     }
 
-    public void write(String text) {
+    public void write(InputStream in) {
+        this.clientIn = in;
         writingState();
     }
 

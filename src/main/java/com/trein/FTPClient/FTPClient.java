@@ -41,32 +41,58 @@ public class FTPClient {
     }
 
     public boolean download(String fileName, OutputStream outputStream) throws IOException {
-        if(fileName == null || fileName.isEmpty() || outputStream == null || !controlConnection.isConnected())
+        if (fileName == null || fileName.isEmpty() || outputStream == null || !controlConnection.isConnected())
             return false;
 
-        if(!dataConnection.isConnected())
-            if(!openPassiveDataConnection())
-                return false;
+        if (!dataConnection.isConnected())
+            return false;
 
         controlConnection.sendToServer(FTPProtocolConstants.DOWNLOAD_FILE + fileName);
 
-        if(controlConnection.getLastReplyCode() != FTPProtocolConstants.START_TRANSFER)
+        if (controlConnection.getLastReplyCode() != FTPProtocolConstants.START_TRANSFER)
             return false;
 
-        dataConnection.setClientOut(outputStream);
-        dataConnection.read();
+        dataConnection.read(outputStream);
         controlConnection.read();
         return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESSFUL_TRANSMISSION;
     }
 
+    public boolean upload(String fileName, InputStream inputStream) throws IOException {
+        if(fileName.isEmpty() || inputStream == null || !controlConnection.isConnected())
+            return false;
+
+
+        controlConnection.sendToServer(FTPProtocolConstants.UPLOAD_FILE + fileName);
+
+        if( controlConnection.getLastReplyCode() != FTPProtocolConstants.START_TRANSFER )
+            return false;
+
+        dataConnection.write(inputStream);
+        controlConnection.read();
+
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESSFUL_TRANSMISSION;
+    }
+
+    public boolean printList(OutputStream outputStream) throws IOException {
+        controlConnection.sendToServer(FTPProtocolConstants.LIST);
+
+        if(controlConnection.getLastReplyCode() != 150)
+            return false;
+
+        dataConnection.read(outputStream);
+        controlConnection.read();
+
+        return controlConnection.getLastReplyCode() == 226;
+    }
+
 
     public boolean openPassiveDataConnection() throws IOException {
-        if(!controlConnection.isConnected())
+        if (!controlConnection.isConnected())
             return false;
 
         controlConnection.sendToServer(FTPProtocolConstants.PASSIVE_MOD);
 
-        if(controlConnection.getLastReplyCode() != FTPProtocolConstants.ENTERING_PASSIVE_MOD)
+        if (controlConnection.getLastReplyCode() != FTPProtocolConstants.ENTERING_PASSIVE_MOD)
             return false;
 
         ConnectionData connectionData = MessageResponseParser.parsePasv(controlConnection.getLastMessage());
@@ -88,11 +114,11 @@ public class FTPClient {
     }
 
     public boolean connect(String hostname, int port) throws IOException {
-        return  connect(hostname, port, 0);
+        return connect(hostname, port, 0);
     }
 
     public boolean connect(String hostname, int port, int timeout) throws IOException {
-        if(hostname.isEmpty() || (port < 1 || port > 65535) || timeout < 0)
+        if (hostname.isEmpty() || (port < 1 || port > 65535) || timeout < 0)
             return false;
 
         controlConnection.tryToConnect(hostname, port, timeout);
@@ -100,7 +126,7 @@ public class FTPClient {
     }
 
     public boolean login(String login, char[] password) throws IOException {
-        if(login == null || login.isEmpty())
+        if (login == null || login.isEmpty())
             return false;
 
         this.login = login;
@@ -115,7 +141,7 @@ public class FTPClient {
     }
 
     public boolean sendCommand(String command) throws IOException {
-        if(command == null || command.isEmpty() || !controlConnection.isConnected())
+        if (command == null || command.isEmpty() || !controlConnection.isConnected())
             return false;
 
         controlConnection.sendToServer(command);

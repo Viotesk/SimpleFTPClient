@@ -213,7 +213,7 @@ public class ControlConnection {
         connectedIdleState();
     }
 
-    private String readInput() throws IOException {
+    private void readInput() throws IOException {
         StringBuilder sb = new StringBuilder();
         int read;
         while ((read = in.read()) != -1) {
@@ -225,7 +225,6 @@ public class ControlConnection {
         lastMessage = MessageResponseParser.parseResponse(sb.toString());
         log.info("Server >> " + lastMessage.toString());
 
-        return sb.toString();
     }
 
     private void writingPrivate() throws IOException {
