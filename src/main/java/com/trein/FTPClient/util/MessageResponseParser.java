@@ -1,33 +1,44 @@
 package com.trein.FTPClient.util;
 
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+/**
+ * Class
+ */
 
 public final class MessageResponseParser {
     private MessageResponseParser() {
     }
 
     public static Message parseResponse(String response) {
-        Message msg = new Message();
-
-//        Pattern p = Pattern.compile("^[0-9]{3}");
-//        Matcher matcher = p.matcher(response);
-//
-//        if(!matcher.matches()) {
-//            msg.code = 0;
-//            msg.text = response.trim();
-//            return msg;
-//        }
+        Message msg;
 
         try {
-            msg.code = Integer.parseInt(response.substring(0, 3));
-            msg.text = response.substring(4);
+            msg = new Message(Integer.parseInt(response.substring(0, 3)), response.substring(4).trim(), response.charAt(3) == '-');
         } catch (NumberFormatException e) {
-            msg.code = 0;
-            msg.text = response.trim();
+            msg = new Message(0, response.trim(),true);
         }
 
         return msg;
+    }
+
+    public static ConnectionData parsePasv(String message) {
+        ConnectionData result = new ConnectionData();
+        String ipAndPort = message.substring(message.indexOf("(") + 1, message.indexOf(")"));
+
+        String[] strings = ipAndPort.split(",");
+        if(strings.length != 6)
+             return result;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 4; i++) {
+            sb.append(strings[i]);
+            if (i != 3){
+                sb.append('.');
+            }
+        }
+        result.hostname = sb.toString();
+        result.port = (Integer.parseInt(strings[4]) << 8) + Integer.parseInt(strings[5]);
+        sb.setLength(0);
+
+        return result;
     }
 }

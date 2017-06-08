@@ -1,171 +1,130 @@
 package com.trein.FTPClient;
 
+import com.trein.FTPClient.controllers.ControlConnection;
+import com.trein.FTPClient.controllers.DataConnection;
+import com.trein.FTPClient.controllers.FTPProtocolConstants;
+import com.trein.FTPClient.util.ConnectionData;
+import com.trein.FTPClient.util.MessageResponseParser;
 import org.apache.log4j.Logger;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.io.*;
+
 
 public class FTPClient {
-    private ControlState currentControlState = ControlState.DISCONNECTED;
     private Logger log = Logger.getLogger(FTPClient.class);
 
     private static final int DEFAULT_PORT = 21;
     private static final String LOCALHOST = "127.0.0.1";
-    private static final char EOL = 10;
 
-    private int port;
-    private String serverAddr;
-    private String username;
+    private ControlConnection controlConnection;
+    private DataConnection dataConnection;
 
-    private Socket server;
-    private InputStream in;
-    private PrintStream out;
+    private String login;
+    private boolean logged;
 
-    private String lastResponse;
 
-    public ControlState getCurrentControlState() {
-        return currentControlState;
+    public FTPClient() {
+        controlConnection = new ControlConnection();
+        dataConnection = new DataConnection();
+    }
+
+    public ControlConnection.State getCurrentControlState() {
+        return controlConnection.getCurrentState();
     }
 
     public String getLastResponse() {
-        return lastResponse;
+        return controlConnection.getLastResponse();
     }
 
-    public void connect(String serverAddr) {
-        this.connect(serverAddr, DEFAULT_PORT);
+    public boolean isConnected() {
+        return controlConnection.isConnected();
     }
 
-    public void connect(String serverAddr, int port) {
-        this.serverAddr = serverAddr;
-        this.port = port;
-        connectingState();
-    }
+    public boolean download(String fileName, OutputStream outputStream) throws IOException {
+        if(fileName == null || fileName.isEmpty() || outputStream == null || !controlConnection.isConnected())
+            return false;
 
-    public enum ControlState {
-        DISCONNECTING,
-        DISCONNECTED,
-        CONNECTING,
-        CONNECTED,
-        CONNECTED_IDLE,
-        READING,
-        WRITING
-    }
+        if(!dataConnection.isConnected())
+            if(!openPassiveDataConnection())
+                return false;
 
-    private void disconnectingState() {
-        if(currentControlState != ControlState.CONNECTED_IDLE)
-            return;
+        controlConnection.sendToServer(FTPProtocolConstants.DOWNLOAD_FILE + fileName);
 
-        setState(ControlState.DISCONNECTING);
-    }
+        if(controlConnection.getLastReplyCode() != FTPProtocolConstants.START_TRANSFER)
+            return false;
 
-    private void disconnectedState() {
-        setState(ControlState.DISCONNECTED);
-    }
-
-    private void connectingState() {
-        if (currentControlState != ControlState.DISCONNECTED)
-            return;
-
-        setState(ControlState.CONNECTING);
-    }
-
-    private void connectedState() {
-        if (currentControlState == ControlState.DISCONNECTED)
-            return;
-
-        setState(ControlState.CONNECTED);
-    }
-
-    private void connectedIdleState() {
-        if(currentControlState == ControlState.DISCONNECTED || currentControlState == ControlState.DISCONNECTING)
-            return;
-
-        setState(ControlState.CONNECTED_IDLE);
-    }
-
-    private void readingState() {
-        setState(ControlState.READING);
+        dataConnection.setClientOut(outputStream);
+        dataConnection.read();
+        controlConnection.read();
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESSFUL_TRANSMISSION;
     }
 
 
-    private void setState(ControlState newState) {
+    public boolean openPassiveDataConnection() throws IOException {
+        if(!controlConnection.isConnected())
+            return false;
 
-        this.currentControlState = newState;
+        controlConnection.sendToServer(FTPProtocolConstants.PASSIVE_MOD);
 
-        try {
-            switch (this.currentControlState) {
-                case DISCONNECTING:
-                    disconnectPrivate();
-                    disconnectedState();
-                    break;
-                case DISCONNECTED:
-                    break;
-                case CONNECTING:
-                    connectPrivate();
-                    break;
-                case CONNECTED:
-                    readingState();
-                    connectedIdleState();
-                    break;
-                case CONNECTED_IDLE:
-                    break;
-                case READING:
-                    readServerResponse();
-                    break;
-                case WRITING:
-                    break;
-            }
-        } catch (Exception e) {
-            log.warn("Exception: " + e);
-            disconnectedState();
-        }
+        if(controlConnection.getLastReplyCode() != FTPProtocolConstants.ENTERING_PASSIVE_MOD)
+            return false;
+
+        ConnectionData connectionData = MessageResponseParser.parsePasv(controlConnection.getLastMessage());
+        dataConnection.connect(connectionData.hostname, connectionData.port);
+
+        return dataConnection.isConnected();
     }
 
-    private void connectPrivate() throws IOException {
-        server = new Socket();
-        server.connect(new InetSocketAddress(serverAddr, port));
-        if (isConnected()) {
-            in = server.getInputStream();
-            out = new PrintStream(server.getOutputStream(), true);
-            connectedState();
-        } else {
-            disconnectedState();
-        }
+    public String getLogin() {
+        return login;
     }
 
-    private void disconnectPrivate() throws IOException {
-        if(!isConnected())
-            return;
-
-        server.close();
-        server = null;
-        in.close();
-        in = null;
-        out.close();
-        out = null;
+    public boolean isLogged() {
+        return logged;
     }
 
-    private void readServerResponse() throws IOException {
-        StringBuilder sb = new StringBuilder();
-        int read;
-        while ((read = in.read()) != -1) {
-            sb.append((char) read);
-            if (read == EOL)
-                break;
-        }
-        lastResponse = sb.toString();
-        log.info("Server >> " + lastResponse);
+    public boolean connect(String hostname) throws IOException {
+        return this.connect(hostname, DEFAULT_PORT);
     }
 
-    public void disconnect() {
-        disconnectingState();
+    public boolean connect(String hostname, int port) throws IOException {
+        return  connect(hostname, port, 0);
+    }
+
+    public boolean connect(String hostname, int port, int timeout) throws IOException {
+        if(hostname.isEmpty() || (port < 1 || port > 65535) || timeout < 0)
+            return false;
+
+        controlConnection.tryToConnect(hostname, port, timeout);
+        return controlConnection.isConnected();
+    }
+
+    public boolean login(String login, char[] password) throws IOException {
+        if(login == null || login.isEmpty())
+            return false;
+
+        this.login = login;
+
+        controlConnection.sendToServer(FTPProtocolConstants.LOGIN + login);
+
+        if (controlConnection.getLastReplyCode() == FTPProtocolConstants.NEED_PASSWORD)
+            controlConnection.sendToServer(FTPProtocolConstants.PASSWORD + password);
+
+        logged = controlConnection.getLastReplyCode() == FTPProtocolConstants.LOGGING_SUCCESSFUL;
+        return logged;
+    }
+
+    public boolean sendCommand(String command) throws IOException {
+        if(command == null || command.isEmpty() || !controlConnection.isConnected())
+            return false;
+
+        controlConnection.sendToServer(command);
+        return true;
+    }
+
+    public void disconnect() throws IOException {
+        controlConnection.tryToDisconnect();
     }
 
 
-    private boolean isConnected() {
-        return server != null;
-    }
 }
