@@ -140,6 +140,10 @@ public class FTPClient {
         return dataConnection.isConnected();
     }
 
+    public boolean dataIsConnected() {
+        return dataConnection.isConnected();
+    }
+
     public String getLogin() {
         return login;
     }

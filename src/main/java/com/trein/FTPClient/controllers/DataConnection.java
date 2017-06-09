@@ -190,13 +190,14 @@ public class DataConnection {
     }
 
     private void disconnectPrivate() throws IOException {
+        in.close();
+        out.close();
+
         if (isConnected())
             socket.close();
 
         socket = null;
-        in.close();
         in = null;
-        out.close();
         out = null;
 
         clientIn = null;
