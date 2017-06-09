@@ -202,6 +202,7 @@ public class DataConnection {
 
         clientIn = null;
         clientOut = null;
+        disconnectedState();
     }
 
     public boolean isConnected() {
