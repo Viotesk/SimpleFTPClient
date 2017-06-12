@@ -1,8 +1,5 @@
 package com.trein.FTPClient.controllers;
 
-/**
- * Created by Viote on 28.05.2017.
- */
 public class FTPProtocolConstants {
     private FTPProtocolConstants(){}
 
@@ -12,6 +9,7 @@ public class FTPProtocolConstants {
     public static final String LOGIN = "USER ";
     public static final String PASSWORD = "PASS ";
     public static final String LIST = "LIST ";
+    public static final String MLSD = "MLSD ";
     public static final String PASSIVE_MOD = "PASV ";
     public static final String DOWNLOAD_FILE = "RETR ";
     public static final String UPLOAD_FILE = "STOR ";

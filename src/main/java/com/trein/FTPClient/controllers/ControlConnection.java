@@ -1,7 +1,9 @@
 package com.trein.FTPClient.controllers;
 
+import com.trein.FTPClient.ExceptionHandler;
 import com.trein.FTPClient.util.Message;
 import com.trein.FTPClient.util.MessageResponseParser;
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -12,6 +14,7 @@ import java.net.Socket;
 
 public class ControlConnection {
     private Logger log = Logger.getLogger(ControlConnection.class);
+    private ExceptionHandler exceptionHandler;
     private Socket socket;
 
     private InputStream in;
@@ -65,7 +68,14 @@ public class ControlConnection {
         return currentState;
     }
 
-    public void tryToConnect(String serverAddr, int port, int timeout) throws IOException {
+    /**Set exception handler for handle exceptions
+     * @param exceptionHandler class for handle exceptions
+     */
+    public void setExceptionHandler(ExceptionHandler exceptionHandler) {
+        this.exceptionHandler = exceptionHandler;
+    }
+
+    public void tryToConnect(String serverAddr, int port, int timeout) {
         if (currentState != State.DISCONNECTED)
             tryToDisconnect();
 
@@ -76,7 +86,7 @@ public class ControlConnection {
         connectingState();
     }
 
-    public void tryToDisconnect() throws IOException {
+    public void tryToDisconnect() {
         if (currentState == State.DISCONNECTED)
             return;
 
@@ -84,7 +94,7 @@ public class ControlConnection {
     }
 
 
-    public void sendToServer(String command) throws IOException {
+    public void sendToServer(String command) {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
@@ -92,7 +102,7 @@ public class ControlConnection {
         writingState();
     }
 
-    public void read() throws IOException {
+    public void read() {
         readingState();
     }
 
@@ -107,43 +117,43 @@ public class ControlConnection {
     }
 
     //TODO throw Exception instead "return"
-    private void disconnectingState() throws IOException {
+    private void disconnectingState() {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
         setState(State.DISCONNECTING);
     }
 
-    private void disconnectedState() throws IOException {
+    private void disconnectedState() {
         setState(State.DISCONNECTED);
     }
 
-    private void connectingState() throws IOException {
+    private void connectingState() {
         if (currentState != State.DISCONNECTED)
             return;
 
         setState(State.CONNECTING);
     }
 
-    private void connectedState() throws IOException {
+    private void connectedState() {
         if (currentState == State.DISCONNECTED)
             return;
 
         setState(State.CONNECTED);
     }
 
-    private void connectedIdleState() throws IOException {
+    private void connectedIdleState() {
         if (currentState == State.DISCONNECTED || currentState == State.DISCONNECTING)
             return;
 
         setState(State.CONNECTED_IDLE);
     }
 
-    private void readingState() throws IOException {
+    private void readingState() {
         setState(State.READING);
     }
 
-    private void writingState() throws IOException {
+    private void writingState() {
         if (currentState != State.CONNECTED_IDLE)
             return;
 
@@ -151,57 +161,77 @@ public class ControlConnection {
     }
 
 
-    private void setState(State newState) throws IOException {
-
+    private void setState(State newState) {
         currentState = newState;
 
-        switch (currentState) {
-            case DISCONNECTING:
-                disconnectPrivate();
-                break;
-            case DISCONNECTED:
-                break;
-            case CONNECTING:
-                connectPrivate();
-                break;
-            case CONNECTED:
-                readingState();
-                break;
-            case CONNECTED_IDLE:
-                break;
-            case READING:
-                readServerResponse();
-                break;
-            case WRITING:
-                writingPrivate();
-                break;
+        try {
+            switch (currentState) {
+                case DISCONNECTING:
+                    disconnectPrivate();
+                    break;
+                case DISCONNECTED:
+                    break;
+                case CONNECTING:
+                    connectPrivate();
+                    break;
+                case CONNECTED:
+                    readingState();
+                    break;
+                case CONNECTED_IDLE:
+                    break;
+                case READING:
+                    readServerResponse();
+                    break;
+                case WRITING:
+                    writingPrivate();
+                    break;
+            }
+        } catch (Exception e) {
+            exceptionHandler.catchException(Level.DEBUG, e);
+            disconnectingState();
         }
     }
 
     private void connectPrivate() throws IOException {
         socket = new Socket();
-        socket.connect(new InetSocketAddress(hostname, port));
-        if (isConnected()) {
+        System.out.println("connect");
+        try {
+            socket.connect(new InetSocketAddress(hostname, port), timeout);
+        } catch (IOException e) {
+            exceptionHandler.catchException(Level.ERROR, e);
+            disconnectedState();
+            return;
+        }
+
+        try {
             in = socket.getInputStream();
             out = new PrintStream(socket.getOutputStream());
-            connectedState();
-        } else {
-            disconnectedState();
+        } catch (IOException e) {
+            exceptionHandler.catchException(Level.ERROR, e);
+            disconnectingState();
+            return;
         }
+
+        connectedState();
     }
 
     private void disconnectPrivate() throws IOException {
         if (!isConnected())
             return;
 
-        socket.close();
-        socket = null;
-        in.close();
-        in = null;
-        out.close();
-        out = null;
+        try {
+            socket.close();
+            in.close();
+        } catch (IOException e) {
+            exceptionHandler.catchException(Level.ERROR, e);
+        } finally {
+            out.close();
+            socket = null;
+            in = null;
+            out = null;
 
-        disconnectedState();
+            disconnectedState();
+        }
     }
 
     private void readServerResponse() throws IOException {

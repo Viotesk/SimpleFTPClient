@@ -1,5 +1,7 @@
 package com.trein.FTPClient.controllers;
 
+import com.trein.FTPClient.util.streams.FTPDataInputStream;
+import com.trein.FTPClient.util.streams.FTPDataOutputStream;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -23,10 +25,9 @@ public class DataConnection {
     private InputStream clientIn;
     private OutputStream clientOut;
 
+
     private String serverAddr;
     private int port;
-
-    private byte[] dataToSend;
 
     private String response;
 
@@ -39,6 +40,10 @@ public class DataConnection {
     }
 
 
+    public void disconnect() {
+        disconnectingState();
+    }
+
     public void connect(String serverAddr, int port) {
         this.serverAddr = serverAddr;
         this.port = port;
@@ -46,14 +51,14 @@ public class DataConnection {
         connectingState();
     }
 
-    public void read(OutputStream out) {
-        this.clientOut = out;
+    public InputStream read() {
         readingState();
+        return clientIn;
     }
 
-    public void write(InputStream in) {
-        this.clientIn = in;
+    public OutputStream write() {
         writingState();
+        return clientOut;
     }
 
     public enum State {
@@ -109,6 +114,7 @@ public class DataConnection {
     }
 
     private void setState(State newState) {
+//        log.debug("Curr state: " + currentState + " New state: " + newState);
         currentState = newState;
         try {
             switch (currentState) {
@@ -158,35 +164,12 @@ public class DataConnection {
         connectedState();
     }
 
-    private void readPrivate() throws IOException {
-        byte[] buffer = new byte[BUFFER_SIZE];
-        int length;
-
-        try {
-            while ((length = in.read(buffer)) != -1) {
-                clientOut.write(buffer, 0, length);
-            }
-        } catch (IOException e) {
-            log.warn("Exception while reading data: ", e);
-            throw e;
-        }
-
-        disconnectingState();
+    private void readPrivate() {
+        clientIn = new FTPDataInputStream(in, this);
     }
 
     private void writePrivate()  {
-        byte[] buffer = new byte[BUFFER_SIZE];
-        int length;
-
-        try {
-            while ((length = clientIn.read(buffer)) != -1) {
-                out.write(buffer, 0, length);
-            }
-        } catch (IOException e) {
-            log.warn("Exception while writing date: ", e);
-        }
-
-        disconnectingState();
+        clientOut = new FTPDataOutputStream(out, this);
     }
 
     private void disconnectPrivate() throws IOException {
