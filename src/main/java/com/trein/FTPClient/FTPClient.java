@@ -67,7 +67,7 @@ public class FTPClient {
 
         byte[] buffer = new byte[bufferSize];
 
-        try(OutputStream out = dataConnection.write()) {
+        try (OutputStream out = dataConnection.write()) {
             int length;
             while ((length = inputStream.read(buffer)) != -1) {
                 out.write(buffer, 0, length);
@@ -98,16 +98,18 @@ public class FTPClient {
 
         byte[] buffer = new byte[bufferSize];
 
-        try(InputStream in = dataConnection.read()) {
+        try (InputStream in = dataConnection.read()) {
 
             int length;
-            while ((length = in.read(buffer))!= -1) {
+            while ((length = in.read(buffer)) != -1) {
                 outputStream.write(buffer, 0, length);
             }
         } catch (IOException e) {
             exceptionHandler.catchException(Level.WARN, e);
             return false;
         }
+
+        controlConnection.read();
 
         return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESSFUL_TRANSMISSION;
     }
@@ -146,7 +148,6 @@ public class FTPClient {
         byte[] buffer = new byte[bufferSize];
 
 
-
         int length;
         try (InputStream in = dataConnection.read();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -154,6 +155,7 @@ public class FTPClient {
                 out.write(buffer, 0, length);
             }
             out.flush();
+            controlConnection.read();
             return out.toString();
         } catch (IOException e) {
             exceptionHandler.catchException(Level.ERROR, e);
@@ -163,8 +165,10 @@ public class FTPClient {
 
     public String commandMLSD() {
         if (!dataConnection.isConnected())
-            if (!openPassiveDataConnection())
+            if (!openPassiveDataConnection()) {
+                log.debug("passiv connection close");
                 return null;
+            }
 
         controlConnection.sendToServer(FTPProtocolConstants.MLSD);
 
@@ -174,7 +178,6 @@ public class FTPClient {
         byte[] buffer = new byte[bufferSize];
 
 
-
         int length;
         try (InputStream in = dataConnection.read();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -182,6 +185,7 @@ public class FTPClient {
                 out.write(buffer, 0, length);
             }
             out.flush();
+            controlConnection.read();
             return out.toString();
         } catch (IOException e) {
             exceptionHandler.catchException(Level.ERROR, e);
@@ -206,6 +210,7 @@ public class FTPClient {
 
         if (controlConnection.getLastReplyCode() != FTPProtocolConstants.ENTERING_PASSIVE_MOD)
             return false;
+
 
         ConnectionData connectionData = MessageResponseParser.parsePasv(controlConnection.getLastMessage());
         dataConnection.connect(connectionData.hostname, connectionData.port);

@@ -194,7 +194,7 @@ public class ControlConnection {
 
     private void connectPrivate() throws IOException {
         socket = new Socket();
-        System.out.println("connect");
+
         try {
             socket.connect(new InetSocketAddress(hostname, port), timeout);
         } catch (IOException e) {
