@@ -128,9 +128,9 @@ public class FTPClient {
         if (!controlConnection.isConnected())
             return false;
 
-        controlConnection.sendToServer("CWD " + path);
+        controlConnection.sendToServer(FTPProtocolConstants.MOVE_TO_DIR + path);
 
-        return true;
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESS_MOVE;
     }
 
     public String printList() {
