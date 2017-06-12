@@ -225,15 +225,15 @@ public class FTPClient {
         return logged;
     }
 
-    public boolean connect(String hostname) throws IOException {
+    public boolean connect(String hostname) {
         return this.connect(hostname, DEFAULT_PORT);
     }
 
-    public boolean connect(String hostname, int port) throws IOException {
+    public boolean connect(String hostname, int port) {
         return connect(hostname, port, 0);
     }
 
-    public boolean connect(String hostname, int port, int timeout) throws IOException {
+    public boolean connect(String hostname, int port, int timeout) {
         if (hostname.isEmpty() || (port < 1 || port > 65535) || timeout < 0)
             return false;
 
@@ -241,7 +241,7 @@ public class FTPClient {
         return controlConnection.isConnected();
     }
 
-    public boolean login(String login, char[] password) throws IOException {
+    public boolean login(String login, char[] password) {
         if (login == null || login.isEmpty())
             return false;
 
@@ -256,7 +256,7 @@ public class FTPClient {
         return logged;
     }
 
-    public boolean sendCommand(String command) throws IOException {
+    public boolean sendCommand(String command) {
         if (command == null || command.isEmpty() || !controlConnection.isConnected())
             return false;
 
