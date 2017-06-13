@@ -17,7 +17,6 @@ public class FTPClient {
     private Logger log = Logger.getLogger(FTPClient.class);
 
     private static final int DEFAULT_PORT = 21;
-    private static final String LOCALHOST = "127.0.0.1";
 
     private int bufferSize = 1024;
 
@@ -52,6 +51,23 @@ public class FTPClient {
         return controlConnection.isConnected();
     }
 
+    public boolean startUpload(String fileName) {
+        controlConnection.sendToServer(FTPProtocolConstants.UPLOAD_FILE + fileName);
+
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.START_TRANSFER;
+    }
+
+    public boolean startDownload(String fileName) {
+        controlConnection.sendToServer(FTPProtocolConstants.DOWNLOAD_FILE + fileName);
+
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.START_TRANSFER;
+    }
+
+    public boolean transferIsSuccessfull() {
+        controlConnection.read();
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESSFUL_TRANSMISSION;
+    }
+
     public boolean upload(String fileName, InputStream inputStream) {
         if (fileName.isEmpty() || inputStream == null || !controlConnection.isConnected())
             return false;
@@ -81,6 +97,15 @@ public class FTPClient {
         controlConnection.read();
 
         return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESSFUL_TRANSMISSION;
+    }
+
+    public boolean abort() {
+        if (!controlConnection.isConnected())
+            return false;
+
+        controlConnection.sendToServer(FTPProtocolConstants.ABORT);
+
+        return true;
     }
 
     public boolean download(String fileName, OutputStream outputStream) {
@@ -133,6 +158,15 @@ public class FTPClient {
         controlConnection.sendToServer(FTPProtocolConstants.MOVE_TO_DIR + path);
 
         return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESS_MOVE;
+    }
+
+    public boolean createDir(String name) {
+        if (!controlConnection.isConnected())
+            return false;
+
+        controlConnection.sendToServer(FTPProtocolConstants.CREATE_DIR + name);
+
+        return controlConnection.getLastReplyCode() == FTPProtocolConstants.SUCCESS_CREATE;
     }
 
     public String printList() {
